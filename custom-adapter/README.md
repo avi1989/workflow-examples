@@ -1,4 +1,4 @@
-# bun-workflow-test
+# Custom Framework Integrations - Bun
 
 A demonstration of the [Workflow DevKit](https://useworkflow.dev/) using Bun runtime. This project showcases how to build durable, long-running workflows with automatic retries and state persistence.
 
