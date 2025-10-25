@@ -1,0 +1,19 @@
+{
+  "name": "bun-workflow-test",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun x workflow build && clear && PORT=3152 bun run server.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@workflow/world-local": "^4.0.1-beta.1",
+    "workflow": "^4.0.1-beta.2"
+  }
+}
