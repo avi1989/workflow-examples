@@ -4,7 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun x workflow build && clear && PORT=3152 bun run server.ts"
+    "dev": "bun x workflow build && PORT=3152 bun run server.ts",
+    "clean": "rm -rf .workflow-output node_modules .well-known .swc"
   },
   "devDependencies": {
     "@types/bun": "latest"
