@@ -23,7 +23,6 @@ import ChatInput from "@/components/chat-input";
 import type { MyUIMessage } from "@/schemas/chat";
 
 const SUGGESTIONS = [
-	"Book me the cheapest flight from San Francisco to Los Angeles for July 27 2025. My name is Pranay Prakash. I like window seats. Don't ask me for confirmation.",
 	"Find me flights from San Francisco to Los Angeles",
 	"What's the status of flight UA123?",
 	"Tell me about SFO airport",
@@ -146,6 +145,26 @@ export default function ChatPage() {
 							/>
 						))}
 					</Suggestions>
+					<div className="mt-10 p-3 bg-muted/25 rounded-lg border">
+						<p className="text-sm text-muted-foreground mb-3">
+							To see the full extent of agentic tool-calling and workflows, use
+							this prompt:
+						</p>
+						<button
+							type="button"
+							onClick={() => {
+								sendMessage({
+									text: "Book me the cheapest flight from San Francisco to Los Angeles for July 27 2025. My name is Pranay Prakash. I like window seats. Don't ask me for confirmation.",
+									metadata: { createdAt: Date.now() },
+								});
+							}}
+							className="text-sm border px-3 py-2 rounded-md bg-muted/50 text-left hover:bg-muted/75 transition-colors cursor-pointer"
+						>
+							Book me the cheapest flight from San Francisco to Los Angeles for
+							July 27 2025. My name is Pranay Prakash. I like window seats.
+							Don't ask me for confirmation.
+						</button>
+					</div>
 				</div>
 			)}
 			<Conversation className="mb-10">
