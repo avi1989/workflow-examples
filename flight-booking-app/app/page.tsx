@@ -276,11 +276,17 @@ export default function ChatPage() {
 function renderToolOutput(part: any) {
 	switch (part.type) {
 		case "tool-searchFlights": {
-			const output = part.output as any;
-			const flights = output?.flights || [];
+			const partOutput = part.output as any;
+			if (!partOutput) {
+				return null;
+			}
+			const parsedPartOutput = JSON.parse(partOutput);
+			const output = parsedPartOutput.output.value;
+			const parsedOutput = JSON.parse(output);
+			const flights = parsedOutput?.flights || [];
 			return (
 				<div className="space-y-2">
-					<p className="text-sm font-medium">{output?.message}</p>
+					<p className="text-sm font-medium">{parsedOutput?.message}</p>
 					{flights.map((flight: any) => (
 						<div
 							key={flight.flightNumber}
