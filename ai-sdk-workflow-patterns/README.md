@@ -14,14 +14,13 @@ This project shows common AI agent patterns using the Workflow DevKit to make ag
 
    ```bash
    git clone https://github.com/vercel/workflow-examples
-   cd workflow-examples
+   cd workflow-examples/ai-sdk-workflow-patterns
    pnpm install
    ```
 
 2. Create a `.env.local` file in `examples/ai-sdk-workflow-patterns/`:
 
    ```bash
-   cd ai-sdk-workflow-patterns
    touch .env.local
    ```
 
@@ -34,7 +33,7 @@ This project shows common AI agent patterns using the Workflow DevKit to make ag
 3. Start the development server:
 
    ```bash
-   pnpm turbo dev
+   pnpm dev
    ```
 
 4. Open [http://localhost:3000](http://localhost:3000) to see the app

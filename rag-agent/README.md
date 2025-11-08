@@ -15,14 +15,13 @@ This example shows how to use Workflow to make RAG agents more durable and relia
 
    ```bash
    git clone https://github.com/vercel/workflow-examples
-   cd workflow-examples
+   cd workflow-examples/rag-agent
    pnpm install
    ```
 
 2. Create a `.env.local` file in `examples/rag-agent/`:
 
    ```bash
-   cd rag-agent
    touch .env.local
    ```
 

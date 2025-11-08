@@ -12,14 +12,13 @@ This starter is a template for a Next.js project that uses Workflow DevKit. It f
 
    ```bash
    git clone https://github.com/vercel/workflow-examples
-   cd workflow-examples
+   cd workflow-examples/nextjs
    pnpm install
    ```
 
 2. Start the development server:
 
    ```bash
-   cd nextjs
    pnpm dev
    ```
 

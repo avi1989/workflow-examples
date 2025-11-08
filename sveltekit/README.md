@@ -12,14 +12,13 @@ This starter is a template for a SvelteKit project that uses Workflow DevKit. It
 
    ```bash
    git clone https://github.com/vercel/workflow-examples
-   cd workflow-examples
+   cd workflow-examples/sveltekit
    pnpm install
    ```
 
 2. Start the development server:
 
    ```bash
-   cd sveltekit
    pnpm dev
    ```
 
