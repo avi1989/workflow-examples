@@ -21,6 +21,6 @@
     "vite": "^7.1.10"
   },
   "dependencies": {
-    "workflow": "link:../../../Library/pnpm/global/5/node_modules/workflow"
+    "workflow": "4.0.1-beta.19"
   }
 }
