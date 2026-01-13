@@ -21,6 +21,7 @@ import {
 } from "@/components/ai-elements/tool";
 import ChatInput from "@/components/chat-input";
 import type { MyUIMessage } from "@/schemas/chat";
+import { BookingApproval } from "@/components/booking-approval";
 
 const SUGGESTIONS = [
   "Find me flights from San Francisco to Los Angeles",
@@ -29,6 +30,8 @@ const SUGGESTIONS = [
   "What's the baggage allowance for United Airlines economy?",
   "Book a flight from New York to Miami",
 ];
+const FULL_EXAMPLE_PROMPT =
+  "Book me the cheapest flight from San Francisco to Los Angeles for July 27 2025. My name is Pranay Prakash. I like window seats. Don't ask me for approval.";
 
 export default function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -38,7 +41,7 @@ export default function ChatPage() {
     return localStorage.getItem("active-workflow-run-id") ?? undefined;
   }, []);
 
-  const { stop, messages, sendMessage, status, setMessages } =
+  const { stop, error, messages, sendMessage, status, setMessages } =
     useChat<MyUIMessage>({
       resume: !!activeWorkflowRunId,
       onError(error) {
@@ -63,7 +66,7 @@ export default function ChatPage() {
           // Update the chat history in `localStorage` to include the latest user message
           localStorage.setItem(
             "chat-history",
-            JSON.stringify(options.messages),
+            JSON.stringify(options.messages)
           );
 
           // We'll store the workflow run ID in `localStorage` to allow the client
@@ -71,7 +74,7 @@ export default function ChatPage() {
           const workflowRunId = response.headers.get("x-workflow-run-id");
           if (!workflowRunId) {
             throw new Error(
-              'Workflow run ID not found in "x-workflow-run-id" response header',
+              'Workflow run ID not found in "x-workflow-run-id" response header'
             );
           }
           localStorage.setItem("active-workflow-run-id", workflowRunId);
@@ -121,6 +124,16 @@ export default function ChatPage() {
         <p className="text-muted-foreground">Book a flight using workflows</p>
       </div>
 
+      {/* Error display */}
+      {error && (
+        <div className="text-sm mb-4 p-4 rounded-lg border border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-400">
+          <div className="flex items-start gap-2">
+            <span className="font-medium">Error:</span>
+            <span className="flex-1">{error.message}</span>
+          </div>
+        </div>
+      )}
+
       {messages.length === 0 && (
         <div className="mb-8 space-y-4">
           <div className="text-center">
@@ -154,15 +167,13 @@ export default function ChatPage() {
               type="button"
               onClick={() => {
                 sendMessage({
-                  text: "Book me the cheapest flight from San Francisco to Los Angeles for July 27 2025. My name is Pranay Prakash. I like window seats. Don't ask me for confirmation.",
+                  text: FULL_EXAMPLE_PROMPT,
                   metadata: { createdAt: Date.now() },
                 });
               }}
               className="text-sm border px-3 py-2 rounded-md bg-muted/50 text-left hover:bg-muted/75 transition-colors cursor-pointer"
             >
-              Book me the cheapest flight from San Francisco to Los Angeles for
-              July 27 2025. My name is Pranay Prakash. I like window seats.
-              Don't ask me for confirmation.
+              {FULL_EXAMPLE_PROMPT}
             </button>
           </div>
         </div>
@@ -171,15 +182,10 @@ export default function ChatPage() {
         <ConversationContent>
           {messages.map((message, index) => {
             const hasText = message.parts.some((part) => part.type === "text");
+            const isLastMessage = index === messages.length - 1;
 
             return (
               <div key={message.id}>
-                {message.role === "assistant" &&
-                  index === messages.length - 1 &&
-                  (status === "submitted" || status === "streaming") &&
-                  !hasText && (
-                    <Shimmer className="text-sm">Thinking...</Shimmer>
-                  )}
                 <Message from={message.role}>
                   <MessageContent>
                     {message.parts.map((part, partIndex) => {
@@ -212,7 +218,8 @@ export default function ChatPage() {
                         part.type === "tool-checkFlightStatus" ||
                         part.type === "tool-getAirportInfo" ||
                         part.type === "tool-bookFlight" ||
-                        part.type === "tool-checkBaggageAllowance"
+                        part.type === "tool-checkBaggageAllowance" ||
+                        part.type === "tool-sleep"
                       ) {
                         // Additional type guard to ensure we have the required properties
                         if (!("toolCallId" in part) || !("state" in part)) {
@@ -240,13 +247,58 @@ export default function ChatPage() {
                           </Tool>
                         );
                       }
+                      if (part.type === "tool-bookingApproval") {
+                        return (
+                          <BookingApproval
+                            key={partIndex}
+                            toolCallId={part.toolCallId}
+                            input={
+                              part.input as {
+                                flightNumber: string;
+                                passengerName: string;
+                                price: number;
+                              }
+                            }
+                            output={part.output as string}
+                          />
+                        );
+                      }
                       return null;
                     })}
+                    {/* Loading indicators */}
+                    {message.role === "assistant" &&
+                      isLastMessage &&
+                      !hasText && (
+                        <>
+                          {status === "submitted" && (
+                            <Shimmer className="text-sm">
+                              Sending message...
+                            </Shimmer>
+                          )}
+                          {status === "streaming" && (
+                            <Shimmer className="text-sm">
+                              Waiting for response...
+                            </Shimmer>
+                          )}
+                        </>
+                      )}
                   </MessageContent>
                 </Message>
               </div>
             );
           })}
+          {/* Show loading indicator when message is sent but no assistant response yet */}
+          {messages.length > 0 &&
+            messages[messages.length - 1].role === "user" &&
+            status === "submitted" && (
+              <Message from="assistant">
+                <MessageContent>
+                  <Shimmer className="text-sm">
+                    Processing your request...
+                  </Shimmer>
+                </MessageContent>
+              </Message>
+            )}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
@@ -410,6 +462,16 @@ function renderToolOutput(part: any) {
           <div>Checked bags: {baggage.checkedBags}</div>
           <div>Max weight per bag: {baggage.maxWeightPerBag}</div>
           <div>Oversize fee: {baggage.oversizeFee}</div>
+        </div>
+      );
+    }
+
+    case "tool-sleep": {
+      return (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">
+            Sleeping for {part.input.durationMs}ms...
+          </p>
         </div>
       );
     }
