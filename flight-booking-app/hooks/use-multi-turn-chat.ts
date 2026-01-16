@@ -161,17 +161,17 @@ export function useMultiTurnChat<
     transport,
   });
 
-  // Process messages to merge in user messages from data markers
-  // We need to handle the case where:
-  // 1. useChat adds an optimistic user message
-  // 2. The stream also contains a user-message marker for the same content
-  // Solution: Track user message content to avoid duplicates
+  // Process messages to reconstruct the correct conversation order.
+  // The stream contains user-message markers (data-workflow chunks) that need to be
+  // converted into proper user messages and placed in the correct position.
+  // Key insight: parts within an assistant message preserve chunk arrival order,
+  // so we process parts sequentially and split on user-message markers.
   const messages = useMemo(() => {
     const result: UIMessage<TMetadata, UIDataTypes>[] = [];
-    const seenUserMessageContent = new Set<string>();
     const seenUserMessageIds = new Set<string>();
+    const seenUserMessageContent = new Set<string>();
 
-    // First pass: collect all user message content from raw messages (from useChat)
+    // First pass: collect user message content from actual user messages (optimistic sends)
     for (const msg of rawMessages) {
       if (msg.role === 'user') {
         const content = msg.parts
@@ -185,19 +185,40 @@ export function useMultiTurnChat<
     }
 
     for (const msg of rawMessages) {
-      // Check for user-message data markers in assistant messages
+      if (msg.role === 'user') {
+        // Add user messages directly (these are optimistic sends from useChat)
+        result.push(msg);
+        continue;
+      }
+
       if (msg.role === 'assistant') {
+        // Process assistant message parts in order, splitting on user-message markers
+        let currentAssistantParts: typeof msg.parts = [];
+        let partIndex = 0;
+
         for (const part of msg.parts) {
+          // Check if this is a user-message marker
           if (part.type === 'data-workflow' && 'data' in part) {
             const data = part.data as UserMessageData;
             if (data?.type === 'user-message') {
-              // Skip if we already have a user message with this content (from useChat)
-              // or if we've already processed this ID
-              if (seenUserMessageContent.has(data.content) || seenUserMessageIds.has(data.id)) {
+              // First, flush any accumulated assistant parts as an assistant message
+              if (currentAssistantParts.length > 0) {
+                result.push({
+                  ...msg,
+                  id: `${msg.id}-part-${partIndex++}`,
+                  parts: currentAssistantParts,
+                });
+                currentAssistantParts = [];
+              }
+
+              // Skip if we already have this user message (from optimistic send or duplicate)
+              if (seenUserMessageIds.has(data.id) || seenUserMessageContent.has(data.content)) {
                 continue;
               }
               seenUserMessageIds.add(data.id);
               seenUserMessageContent.add(data.content);
+
+              // Add the user message at this position
               const userMsg: UIMessage<TMetadata, UIDataTypes> = {
                 id: data.id,
                 role: 'user',
@@ -205,26 +226,22 @@ export function useMultiTurnChat<
               };
               result.push(userMsg);
               userMessagesRef.current.set(data.id, userMsg);
+              continue;
             }
           }
-        }
-      }
 
-      // Filter out the user-message data markers from the message parts
-      const filteredParts = msg.parts.filter((part) => {
-        if (part.type === 'data-workflow' && 'data' in part) {
-          const data = part.data as UserMessageData;
-          return data?.type !== 'user-message';
+          // Accumulate non-user-marker parts
+          currentAssistantParts.push(part);
         }
-        return true;
-      });
 
-      // Only add the message if it has non-data parts or is a user message
-      if (filteredParts.length > 0 || msg.role === 'user') {
-        result.push({
-          ...msg,
-          parts: filteredParts.length > 0 ? filteredParts : msg.parts,
-        });
+        // Flush any remaining assistant parts
+        if (currentAssistantParts.length > 0) {
+          result.push({
+            ...msg,
+            id: partIndex > 0 ? `${msg.id}-part-${partIndex}` : msg.id,
+            parts: currentAssistantParts,
+          });
+        }
       }
     }
 
