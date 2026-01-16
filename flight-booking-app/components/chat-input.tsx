@@ -1,7 +1,7 @@
-import type { ChatStatus } from 'ai';
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import type { MyUIMessage } from '@/schemas/chat';
+import type { ChatStatus } from "ai";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import type { MyUIMessage } from "@/schemas/chat";
 import {
   PromptInput,
   PromptInputBody,
@@ -10,7 +10,7 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
-} from './ai-elements/prompt-input';
+} from "./ai-elements/prompt-input";
 
 export default function ChatInput({
   status,
@@ -27,7 +27,7 @@ export default function ChatInput({
   ) => void;
   stop: () => void;
 }) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState("");
 
   return (
     <div className="fixed bottom-2 w-full max-w-2xl bg-background">
@@ -37,10 +37,10 @@ export default function ChatInput({
           if (!hasText) return;
 
           sendMessage({
-            text: message.text || '',
+            text: message.text || "",
             metadata: { createdAt: Date.now() },
           });
-          setText('');
+          setText("");
         }}
       >
         <PromptInputBody>
@@ -58,10 +58,10 @@ export default function ChatInput({
               size="sm"
               onClick={async () => {
                 await stop();
-                localStorage.removeItem('active-workflow-run-id');
-                localStorage.removeItem('chat-history');
+                localStorage.removeItem("active-workflow-run-id");
+                localStorage.removeItem("chat-history");
                 setMessages([]);
-                setText('');
+                setText("");
               }}
             >
               New Chat

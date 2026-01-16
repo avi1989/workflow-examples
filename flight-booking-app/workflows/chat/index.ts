@@ -1,20 +1,24 @@
-import { convertToModelMessages, UIMessageChunk, type UIMessage } from "ai";
-import { DurableAgent } from "@workflow/ai/agent";
-import { FLIGHT_ASSISTANT_PROMPT, flightBookingTools } from "./steps/tools";
-import { getWritable } from "workflow";
+import {
+  convertToModelMessages,
+  type UIMessageChunk,
+  type UIMessage,
+} from 'ai';
+import { DurableAgent } from '@workflow/ai/agent';
+import { FLIGHT_ASSISTANT_PROMPT, flightBookingTools } from './steps/tools';
+import { getWritable } from 'workflow';
 
 /**
  * The main chat workflow
  */
 export async function chat(messages: UIMessage[]) {
-  "use workflow";
+  'use workflow';
 
-  console.log("Starting workflow");
+  console.log('Starting workflow');
 
   const writable = getWritable<UIMessageChunk>();
 
   const agent = new DurableAgent({
-    model: "bedrock/claude-haiku-4-5-20251001-v1",
+    model: 'bedrock/claude-haiku-4-5-20251001-v1',
     system: FLIGHT_ASSISTANT_PROMPT,
     tools: flightBookingTools,
   });
@@ -24,5 +28,5 @@ export async function chat(messages: UIMessage[]) {
     writable,
   });
 
-  console.log("Finished workflow");
+  console.log('Finished workflow');
 }
