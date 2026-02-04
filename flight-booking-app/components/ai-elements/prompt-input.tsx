@@ -1,17 +1,49 @@
-'use client';
+"use client";
 
-import type { ChatStatus, FileUIPart } from 'ai';
 import {
-  ForwardIcon,
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@/components/ui/input-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
+import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from "ai";
+import {
+  CornerDownLeftIcon,
   ImageIcon,
-  Loader2Icon,
-  MicIcon,
-  PaperclipIcon,
   PlusIcon,
   SquareIcon,
   XIcon,
-} from 'lucide-react';
-import { nanoid } from 'nanoid';
+} from "lucide-react";
+import { nanoid } from "nanoid";
 import {
   type ChangeEvent,
   type ChangeEventHandler,
@@ -21,80 +53,38 @@ import {
   createContext,
   type FormEvent,
   type FormEventHandler,
-  Fragment,
   type HTMLAttributes,
   type KeyboardEventHandler,
   type PropsWithChildren,
-  type ReactNode,
   type RefObject,
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-} from 'react';
-import { Button } from '@/components/ui/button';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from '@/components/ui/command';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from '@/components/ui/hover-card';
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupTextarea,
-} from '@/components/ui/input-group';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
+} from "react";
+
 // ============================================================================
 // Provider Context & Types
 // ============================================================================
 
-export type AttachmentsContext = {
+export interface AttachmentsContext {
   files: (FileUIPart & { id: string })[];
   add: (files: File[] | FileList) => void;
   remove: (id: string) => void;
   clear: () => void;
   openFileDialog: () => void;
   fileInputRef: RefObject<HTMLInputElement | null>;
-};
+}
 
-export type TextInputContext = {
+export interface TextInputContext {
   value: string;
   setInput: (v: string) => void;
   clear: () => void;
-};
+}
 
-export type PromptInputControllerProps = {
+export interface PromptInputControllerProps {
   textInput: TextInputContext;
   attachments: AttachmentsContext;
   /** INTERNAL: Allows PromptInput to register its file textInput + "open" callback */
@@ -102,7 +92,7 @@ export type PromptInputControllerProps = {
     ref: RefObject<HTMLInputElement | null>,
     open: () => void
   ) => void;
-};
+}
 
 const PromptInputController = createContext<PromptInputControllerProps | null>(
   null
@@ -115,7 +105,7 @@ export const usePromptInputController = () => {
   const ctx = useContext(PromptInputController);
   if (!ctx) {
     throw new Error(
-      'Wrap your component inside <PromptInputProvider> to use usePromptInputController().'
+      "Wrap your component inside <PromptInputProvider> to use usePromptInputController()."
     );
   }
   return ctx;
@@ -129,7 +119,7 @@ export const useProviderAttachments = () => {
   const ctx = useContext(ProviderAttachmentsContext);
   if (!ctx) {
     throw new Error(
-      'Wrap your component inside <PromptInputProvider> to use useProviderAttachments().'
+      "Wrap your component inside <PromptInputProvider> to use useProviderAttachments()."
     );
   }
   return ctx;
@@ -147,29 +137,31 @@ export type PromptInputProviderProps = PropsWithChildren<{
  * If you don't use it, PromptInput stays fully self-managed.
  */
 export function PromptInputProvider({
-  initialInput: initialTextInput = '',
+  initialInput: initialTextInput = "",
   children,
 }: PromptInputProviderProps) {
   // ----- textInput state
   const [textInput, setTextInput] = useState(initialTextInput);
-  const clearInput = useCallback(() => setTextInput(''), []);
+  const clearInput = useCallback(() => setTextInput(""), []);
 
   // ----- attachments state (global when wrapped)
-  const [attachements, setAttachements] = useState<
+  const [attachmentFiles, setAttachmentFiles] = useState<
     (FileUIPart & { id: string })[]
   >([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const openRef = useRef<() => void>(() => {});
+  const openRef = useRef<() => void>(() => undefined);
 
   const add = useCallback((files: File[] | FileList) => {
     const incoming = Array.from(files);
-    if (incoming.length === 0) return;
+    if (incoming.length === 0) {
+      return;
+    }
 
-    setAttachements((prev) =>
+    setAttachmentFiles((prev) =>
       prev.concat(
         incoming.map((file) => ({
           id: nanoid(),
-          type: 'file' as const,
+          type: "file" as const,
           url: URL.createObjectURL(file),
           mediaType: file.type,
           filename: file.name,
@@ -179,19 +171,41 @@ export function PromptInputProvider({
   }, []);
 
   const remove = useCallback((id: string) => {
-    setAttachements((prev) => {
+    setAttachmentFiles((prev) => {
       const found = prev.find((f) => f.id === id);
-      if (found?.url) URL.revokeObjectURL(found.url);
+      if (found?.url) {
+        URL.revokeObjectURL(found.url);
+      }
       return prev.filter((f) => f.id !== id);
     });
   }, []);
 
   const clear = useCallback(() => {
-    setAttachements((prev) => {
-      for (const f of prev) if (f.url) URL.revokeObjectURL(f.url);
+    setAttachmentFiles((prev) => {
+      for (const f of prev) {
+        if (f.url) {
+          URL.revokeObjectURL(f.url);
+        }
+      }
       return [];
     });
   }, []);
+
+  // Keep a ref to attachments for cleanup on unmount (avoids stale closure)
+  const attachmentsRef = useRef(attachmentFiles);
+  attachmentsRef.current = attachmentFiles;
+
+  // Cleanup blob URLs on unmount to prevent memory leaks
+  useEffect(
+    () => () => {
+      for (const f of attachmentsRef.current) {
+        if (f.url) {
+          URL.revokeObjectURL(f.url);
+        }
+      }
+    },
+    []
+  );
 
   const openFileDialog = useCallback(() => {
     openRef.current?.();
@@ -199,14 +213,14 @@ export function PromptInputProvider({
 
   const attachments = useMemo<AttachmentsContext>(
     () => ({
-      files: attachements,
+      files: attachmentFiles,
       add,
       remove,
       clear,
       openFileDialog,
       fileInputRef,
     }),
-    [attachements, add, remove, clear, openFileDialog]
+    [attachmentFiles, add, remove, clear, openFileDialog]
   );
 
   const __registerFileInput = useCallback(
@@ -246,157 +260,41 @@ export function PromptInputProvider({
 const LocalAttachmentsContext = createContext<AttachmentsContext | null>(null);
 
 export const usePromptInputAttachments = () => {
-  // Dual-mode: prefer provider if present, otherwise use local
+  // Prefer local context (inside PromptInput) as it has validation, fall back to provider
   const provider = useOptionalProviderAttachments();
   const local = useContext(LocalAttachmentsContext);
-  const context = provider ?? local;
+  const context = local ?? provider;
   if (!context) {
     throw new Error(
-      'usePromptInputAttachments must be used within a PromptInput or PromptInputProvider'
+      "usePromptInputAttachments must be used within a PromptInput or PromptInputProvider"
     );
   }
   return context;
 };
 
-export type PromptInputAttachmentProps = HTMLAttributes<HTMLDivElement> & {
-  data: FileUIPart & { id: string };
-  className?: string;
-};
+// ============================================================================
+// Referenced Sources (Local to PromptInput)
+// ============================================================================
 
-export function PromptInputAttachment({
-  data,
-  className,
-  ...props
-}: PromptInputAttachmentProps) {
-  const attachments = usePromptInputAttachments();
-
-  const mediaType =
-    data.mediaType?.startsWith('image/') && data.url ? 'image' : 'file';
-
-  return (
-    <div
-      className={cn(
-        'group relative h-14 w-14 rounded-md border',
-        className,
-        mediaType === 'image' ? 'h-14 w-14' : 'h-8 w-auto max-w-full'
-      )}
-      key={data.id}
-      {...props}
-    >
-      {mediaType === 'image' ? (
-        <img
-          alt={data.filename || 'attachment'}
-          className="size-full rounded-md object-cover"
-          height={56}
-          src={data.url}
-          width={56}
-        />
-      ) : (
-        <div className="flex size-full max-w-full cursor-pointer items-center justify-start gap-2 overflow-hidden px-2 text-muted-foreground">
-          <PaperclipIcon className="size-4 shrink-0" />
-          <Tooltip delayDuration={400}>
-            <TooltipTrigger className="min-w-0 flex-1">
-              <h4 className="w-full truncate text-left font-medium text-sm">
-                {data.filename || 'Unknown file'}
-              </h4>
-            </TooltipTrigger>
-            <TooltipContent>
-              <div className="text-muted-foreground text-xs">
-                <h4 className="max-w-[240px] overflow-hidden whitespace-normal break-words text-left font-semibold text-sm">
-                  {data.filename || 'Unknown file'}
-                </h4>
-                {data.mediaType && <div>{data.mediaType}</div>}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      )}
-      <Button
-        aria-label="Remove attachment"
-        className="-right-1.5 -top-1.5 absolute h-6 w-6 rounded-full opacity-0 group-hover:opacity-100"
-        onClick={() => attachments.remove(data.id)}
-        size="icon"
-        type="button"
-        variant="outline"
-      >
-        <XIcon className="h-3 w-3" />
-      </Button>
-    </div>
-  );
+export interface ReferencedSourcesContext {
+  sources: (SourceDocumentUIPart & { id: string })[];
+  add: (sources: SourceDocumentUIPart[] | SourceDocumentUIPart) => void;
+  remove: (id: string) => void;
+  clear: () => void;
 }
 
-export type PromptInputAttachmentsProps = Omit<
-  HTMLAttributes<HTMLDivElement>,
-  'children'
-> & {
-  children: (attachment: FileUIPart & { id: string }) => ReactNode;
-};
+export const LocalReferencedSourcesContext =
+  createContext<ReferencedSourcesContext | null>(null);
 
-export function PromptInputAttachments({
-  className,
-  children,
-  ...props
-}: PromptInputAttachmentsProps) {
-  const attachments = usePromptInputAttachments();
-  const [height, setHeight] = useState(0);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const el = contentRef.current;
-    if (!el) {
-      return;
-    }
-    const ro = new ResizeObserver(() => {
-      setHeight(el.getBoundingClientRect().height);
-    });
-    ro.observe(el);
-    setHeight(el.getBoundingClientRect().height);
-    return () => ro.disconnect();
-  }, []);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: Force height measurement when attachments change
-  useLayoutEffect(() => {
-    const el = contentRef.current;
-    if (!el) {
-      return;
-    }
-    setHeight(el.getBoundingClientRect().height);
-  }, [attachments.files.length]);
-
-  if (attachments.files.length === 0) {
-    return null;
+export const usePromptInputReferencedSources = () => {
+  const ctx = useContext(LocalReferencedSourcesContext);
+  if (!ctx) {
+    throw new Error(
+      "usePromptInputReferencedSources must be used within a LocalReferencedSourcesContext.Provider"
+    );
   }
-
-  return (
-    <InputGroupAddon
-      align="block-start"
-      aria-live="polite"
-      className={cn(
-        'overflow-hidden transition-[height] duration-200 ease-out',
-        className
-      )}
-      style={{ height: attachments.files.length ? height : 0 }}
-      {...props}
-    >
-      <div className="space-y-2 py-1" ref={contentRef}>
-        <div className="flex flex-wrap gap-2">
-          {attachments.files
-            .filter((f) => !(f.mediaType?.startsWith('image/') && f.url))
-            .map((file) => (
-              <Fragment key={file.id}>{children(file)}</Fragment>
-            ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {attachments.files
-            .filter((f) => f.mediaType?.startsWith('image/') && f.url)
-            .map((file) => (
-              <Fragment key={file.id}>{children(file)}</Fragment>
-            ))}
-        </div>
-      </div>
-    </InputGroupAddon>
-  );
-}
+  return ctx;
+};
 
 export type PromptInputActionAddAttachmentsProps = ComponentProps<
   typeof DropdownMenuItem
@@ -405,7 +303,7 @@ export type PromptInputActionAddAttachmentsProps = ComponentProps<
 };
 
 export const PromptInputActionAddAttachments = ({
-  label = 'Add photos or files',
+  label = "Add photos or files",
   ...props
 }: PromptInputActionAddAttachmentsProps) => {
   const attachments = usePromptInputAttachments();
@@ -423,14 +321,14 @@ export const PromptInputActionAddAttachments = ({
   );
 };
 
-export type PromptInputMessage = {
-  text?: string;
-  files?: FileUIPart[];
-};
+export interface PromptInputMessage {
+  text: string;
+  files: FileUIPart[];
+}
 
 export type PromptInputProps = Omit<
   HTMLAttributes<HTMLFormElement>,
-  'onSubmit' | 'onError'
+  "onSubmit" | "onError"
 > & {
   accept?: string; // e.g., "image/*" or leave undefined for any
   multiple?: boolean;
@@ -442,7 +340,7 @@ export type PromptInputProps = Omit<
   maxFiles?: number;
   maxFileSize?: number; // bytes
   onError?: (err: {
-    code: 'max_files' | 'max_file_size' | 'accept';
+    code: "max_files" | "max_file_size" | "accept";
     message: string;
   }) => void;
   onSubmit: (
@@ -470,20 +368,20 @@ export const PromptInput = ({
 
   // Refs
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const anchorRef = useRef<HTMLSpanElement>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
-
-  // Find nearest form to scope drag & drop
-  useEffect(() => {
-    const root = anchorRef.current?.closest('form');
-    if (root instanceof HTMLFormElement) {
-      formRef.current = root;
-    }
-  }, []);
 
   // ----- Local attachments (only used when no provider)
   const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
   const files = usingProvider ? controller.attachments.files : items;
+
+  // ----- Local referenced sources (always local to PromptInput)
+  const [referencedSources, setReferencedSources] = useState<
+    (SourceDocumentUIPart & { id: string })[]
+  >([]);
+
+  // Keep a ref to files for cleanup on unmount (avoids stale closure)
+  const filesRef = useRef(files);
+  filesRef.current = files;
 
   const openFileDialogLocal = useCallback(() => {
     inputRef.current?.click();
@@ -491,14 +389,22 @@ export const PromptInput = ({
 
   const matchesAccept = useCallback(
     (f: File) => {
-      if (!accept || accept.trim() === '') {
+      if (!accept || accept.trim() === "") {
         return true;
       }
-      if (accept.includes('image/*')) {
-        return f.type.startsWith('image/');
-      }
-      // NOTE: keep simple; expand as needed
-      return true;
+
+      const patterns = accept
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      return patterns.some((pattern) => {
+        if (pattern.endsWith("/*")) {
+          const prefix = pattern.slice(0, -1); // e.g: image/* -> image/
+          return f.type.startsWith(prefix);
+        }
+        return f.type === pattern;
+      });
     },
     [accept]
   );
@@ -509,8 +415,8 @@ export const PromptInput = ({
       const accepted = incoming.filter((f) => matchesAccept(f));
       if (incoming.length && accepted.length === 0) {
         onError?.({
-          code: 'accept',
-          message: 'No files match the accepted types.',
+          code: "accept",
+          message: "No files match the accepted types.",
         });
         return;
       }
@@ -519,30 +425,30 @@ export const PromptInput = ({
       const sized = accepted.filter(withinSize);
       if (accepted.length > 0 && sized.length === 0) {
         onError?.({
-          code: 'max_file_size',
-          message: 'All files exceed the maximum size.',
+          code: "max_file_size",
+          message: "All files exceed the maximum size.",
         });
         return;
       }
 
       setItems((prev) => {
         const capacity =
-          typeof maxFiles === 'number'
+          typeof maxFiles === "number"
             ? Math.max(0, maxFiles - prev.length)
             : undefined;
         const capped =
-          typeof capacity === 'number' ? sized.slice(0, capacity) : sized;
-        if (typeof capacity === 'number' && sized.length > capacity) {
+          typeof capacity === "number" ? sized.slice(0, capacity) : sized;
+        if (typeof capacity === "number" && sized.length > capacity) {
           onError?.({
-            code: 'max_files',
-            message: 'Too many files. Some were not added.',
+            code: "max_files",
+            message: "Too many files. Some were not added.",
           });
         }
         const next: (FileUIPart & { id: string })[] = [];
         for (const file of capped) {
           next.push({
             id: nanoid(),
-            type: 'file',
+            type: "file",
             url: URL.createObjectURL(file),
             mediaType: file.type,
             filename: file.name,
@@ -554,40 +460,98 @@ export const PromptInput = ({
     [matchesAccept, maxFiles, maxFileSize, onError]
   );
 
-  const add = usingProvider
-    ? (files: File[] | FileList) => controller.attachments.add(files)
-    : addLocal;
+  const removeLocal = useCallback(
+    (id: string) =>
+      setItems((prev) => {
+        const found = prev.find((file) => file.id === id);
+        if (found?.url) {
+          URL.revokeObjectURL(found.url);
+        }
+        return prev.filter((file) => file.id !== id);
+      }),
+    []
+  );
 
-  const remove = usingProvider
-    ? (id: string) => controller.attachments.remove(id)
-    : (id: string) =>
-        setItems((prev) => {
-          const found = prev.find((file) => file.id === id);
-          if (found?.url) {
-            URL.revokeObjectURL(found.url);
-          }
-          return prev.filter((file) => file.id !== id);
+  // Wrapper that validates files before calling provider's add
+  const addWithProviderValidation = useCallback(
+    (fileList: File[] | FileList) => {
+      const incoming = Array.from(fileList);
+      const accepted = incoming.filter((f) => matchesAccept(f));
+      if (incoming.length && accepted.length === 0) {
+        onError?.({
+          code: "accept",
+          message: "No files match the accepted types.",
         });
+        return;
+      }
+      const withinSize = (f: File) =>
+        maxFileSize ? f.size <= maxFileSize : true;
+      const sized = accepted.filter(withinSize);
+      if (accepted.length > 0 && sized.length === 0) {
+        onError?.({
+          code: "max_file_size",
+          message: "All files exceed the maximum size.",
+        });
+        return;
+      }
 
-  const clear = usingProvider
-    ? () => controller.attachments.clear()
-    : () =>
-        setItems((prev) => {
-          for (const file of prev) {
-            if (file.url) {
-              URL.revokeObjectURL(file.url);
+      const currentCount = files.length;
+      const capacity =
+        typeof maxFiles === "number"
+          ? Math.max(0, maxFiles - currentCount)
+          : undefined;
+      const capped =
+        typeof capacity === "number" ? sized.slice(0, capacity) : sized;
+      if (typeof capacity === "number" && sized.length > capacity) {
+        onError?.({
+          code: "max_files",
+          message: "Too many files. Some were not added.",
+        });
+      }
+
+      if (capped.length > 0) {
+        controller?.attachments.add(capped);
+      }
+    },
+    [matchesAccept, maxFileSize, maxFiles, onError, files.length, controller]
+  );
+
+  const clearAttachments = useCallback(
+    () =>
+      usingProvider
+        ? controller?.attachments.clear()
+        : setItems((prev) => {
+            for (const file of prev) {
+              if (file.url) {
+                URL.revokeObjectURL(file.url);
+              }
             }
-          }
-          return [];
-        });
+            return [];
+          }),
+    [usingProvider, controller]
+  );
 
+  const clearReferencedSources = useCallback(
+    () => setReferencedSources([]),
+    []
+  );
+
+  const add = usingProvider ? addWithProviderValidation : addLocal;
+  const remove = usingProvider ? controller.attachments.remove : removeLocal;
   const openFileDialog = usingProvider
-    ? () => controller.attachments.openFileDialog()
+    ? controller.attachments.openFileDialog
     : openFileDialogLocal;
+
+  const clear = useCallback(() => {
+    clearAttachments();
+    clearReferencedSources();
+  }, [clearAttachments, clearReferencedSources]);
 
   // Let provider know about our hidden file input so external menus can call openFileDialog()
   useEffect(() => {
-    if (!usingProvider) return;
+    if (!usingProvider) {
+      return;
+    }
     controller.__registerFileInput(inputRef, () => inputRef.current?.click());
   }, [usingProvider, controller]);
 
@@ -595,98 +559,133 @@ export const PromptInput = ({
   // The syncHiddenInput prop is no longer functional
   useEffect(() => {
     if (syncHiddenInput && inputRef.current && files.length === 0) {
-      inputRef.current.value = '';
+      inputRef.current.value = "";
     }
   }, [files, syncHiddenInput]);
 
   // Attach drop handlers on nearest form and document (opt-in)
   useEffect(() => {
     const form = formRef.current;
-    if (!form) return;
+    if (!form) {
+      return;
+    }
+    if (globalDrop) {
+      return; // when global drop is on, let the document-level handler own drops
+    }
 
     const onDragOver = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes('Files')) {
+      if (e.dataTransfer?.types?.includes("Files")) {
         e.preventDefault();
       }
     };
     const onDrop = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes('Files')) {
+      if (e.dataTransfer?.types?.includes("Files")) {
         e.preventDefault();
       }
       if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
         add(e.dataTransfer.files);
       }
     };
-    form.addEventListener('dragover', onDragOver);
-    form.addEventListener('drop', onDrop);
+    form.addEventListener("dragover", onDragOver);
+    form.addEventListener("drop", onDrop);
     return () => {
-      form.removeEventListener('dragover', onDragOver);
-      form.removeEventListener('drop', onDrop);
+      form.removeEventListener("dragover", onDragOver);
+      form.removeEventListener("drop", onDrop);
     };
-  }, [add]);
+  }, [add, globalDrop]);
 
   useEffect(() => {
-    if (!globalDrop) return;
+    if (!globalDrop) {
+      return;
+    }
 
     const onDragOver = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes('Files')) {
+      if (e.dataTransfer?.types?.includes("Files")) {
         e.preventDefault();
       }
     };
     const onDrop = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes('Files')) {
+      if (e.dataTransfer?.types?.includes("Files")) {
         e.preventDefault();
       }
       if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
         add(e.dataTransfer.files);
       }
     };
-    document.addEventListener('dragover', onDragOver);
-    document.addEventListener('drop', onDrop);
+    document.addEventListener("dragover", onDragOver);
+    document.addEventListener("drop", onDrop);
     return () => {
-      document.removeEventListener('dragover', onDragOver);
-      document.removeEventListener('drop', onDrop);
+      document.removeEventListener("dragover", onDragOver);
+      document.removeEventListener("drop", onDrop);
     };
   }, [add, globalDrop]);
 
   useEffect(
     () => () => {
       if (!usingProvider) {
-        for (const f of files) {
-          if (f.url) URL.revokeObjectURL(f.url);
+        for (const f of filesRef.current) {
+          if (f.url) {
+            URL.revokeObjectURL(f.url);
+          }
         }
       }
     },
-    [usingProvider, files]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cleanup only on unmount; filesRef always current
+    [usingProvider]
   );
 
   const handleChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     if (event.currentTarget.files) {
       add(event.currentTarget.files);
     }
+    // Reset input value to allow selecting files that were previously removed
+    event.currentTarget.value = "";
   };
 
-  const convertBlobUrlToDataUrl = async (url: string): Promise<string> => {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
+  const convertBlobUrlToDataUrl = async (
+    url: string
+  ): Promise<string | null> => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
   };
 
-  const ctx = useMemo<AttachmentsContext>(
+  const attachmentsCtx = useMemo<AttachmentsContext>(
     () => ({
       files: files.map((item) => ({ ...item, id: item.id })),
       add,
       remove,
-      clear,
+      clear: clearAttachments,
       openFileDialog,
       fileInputRef: inputRef,
     }),
-    [files, add, remove, clear, openFileDialog]
+    [files, add, remove, clearAttachments, openFileDialog]
+  );
+
+  const refsCtx = useMemo<ReferencedSourcesContext>(
+    () => ({
+      sources: referencedSources,
+      add: (incoming: SourceDocumentUIPart[] | SourceDocumentUIPart) => {
+        const array = Array.isArray(incoming) ? incoming : [incoming];
+        setReferencedSources((prev) =>
+          prev.concat(array.map((s) => ({ ...s, id: nanoid() })))
+        );
+      },
+      remove: (id: string) => {
+        setReferencedSources((prev) => prev.filter((s) => s.id !== id));
+      },
+      clear: clearReferencedSources,
+    }),
+    [referencedSources, clearReferencedSources]
   );
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
@@ -697,7 +696,7 @@ export const PromptInput = ({
       ? controller.textInput.value
       : (() => {
           const formData = new FormData(form);
-          return (formData.get('message') as string) || '';
+          return (formData.get("message") as string) || "";
         })();
 
     // Reset form immediately after capturing text to avoid race condition
@@ -709,47 +708,52 @@ export const PromptInput = ({
     // Convert blob URLs to data URLs asynchronously
     Promise.all(
       files.map(async ({ id, ...item }) => {
-        if (item.url && item.url.startsWith('blob:')) {
+        if (item.url?.startsWith("blob:")) {
+          const dataUrl = await convertBlobUrlToDataUrl(item.url);
+          // If conversion failed, keep the original blob URL
           return {
             ...item,
-            url: await convertBlobUrlToDataUrl(item.url),
+            url: dataUrl ?? item.url,
           };
         }
         return item;
       })
-    ).then((convertedFiles: FileUIPart[]) => {
-      try {
-        const result = onSubmit({ text, files: convertedFiles }, event);
+    )
+      .then((convertedFiles: FileUIPart[]) => {
+        try {
+          const result = onSubmit({ text, files: convertedFiles }, event);
 
-        // Handle both sync and async onSubmit
-        if (result instanceof Promise) {
-          result
-            .then(() => {
-              clear();
-              if (usingProvider) {
-                controller.textInput.clear();
-              }
-            })
-            .catch(() => {
-              // Don't clear on error - user may want to retry
-            });
-        } else {
-          // Sync function completed without throwing, clear attachments
-          clear();
-          if (usingProvider) {
-            controller.textInput.clear();
+          // Handle both sync and async onSubmit
+          if (result instanceof Promise) {
+            result
+              .then(() => {
+                clear();
+                if (usingProvider) {
+                  controller.textInput.clear();
+                }
+              })
+              .catch(() => {
+                // Don't clear on error - user may want to retry
+              });
+          } else {
+            // Sync function completed without throwing, clear inputs
+            clear();
+            if (usingProvider) {
+              controller.textInput.clear();
+            }
           }
+        } catch {
+          // Don't clear on error - user may want to retry
         }
-      } catch (error) {
+      })
+      .catch(() => {
         // Don't clear on error - user may want to retry
-      }
-    });
+      });
   };
 
   // Render with or without local provider
   const inner = (
     <>
-      <span aria-hidden="true" className="hidden" ref={anchorRef} />
       <input
         accept={accept}
         aria-label="Upload files"
@@ -761,20 +765,26 @@ export const PromptInput = ({
         type="file"
       />
       <form
-        className={cn('w-full', className)}
+        className={cn("w-full", className)}
         onSubmit={handleSubmit}
+        ref={formRef}
         {...props}
       >
-        <InputGroup>{children}</InputGroup>
+        <InputGroup className="overflow-hidden">{children}</InputGroup>
       </form>
     </>
   );
 
-  return usingProvider ? (
-    inner
-  ) : (
-    <LocalAttachmentsContext.Provider value={ctx}>
+  const withReferencedSources = (
+    <LocalReferencedSourcesContext.Provider value={refsCtx}>
       {inner}
+    </LocalReferencedSourcesContext.Provider>
+  );
+
+  // Always provide LocalAttachmentsContext so children get validated add function
+  return (
+    <LocalAttachmentsContext.Provider value={attachmentsCtx}>
+      {withReferencedSources}
     </LocalAttachmentsContext.Provider>
   );
 };
@@ -785,7 +795,7 @@ export const PromptInputBody = ({
   className,
   ...props
 }: PromptInputBodyProps) => (
-  <div className={cn('contents', className)} {...props} />
+  <div className={cn("contents", className)} {...props} />
 );
 
 export type PromptInputTextareaProps = ComponentProps<
@@ -794,8 +804,9 @@ export type PromptInputTextareaProps = ComponentProps<
 
 export const PromptInputTextarea = ({
   onChange,
+  onKeyDown,
   className,
-  placeholder = 'What would you like to know?',
+  placeholder = "What would you like to know?",
   ...props
 }: PromptInputTextareaProps) => {
   const controller = useOptionalPromptInputController();
@@ -803,7 +814,15 @@ export const PromptInputTextarea = ({
   const [isComposing, setIsComposing] = useState(false);
 
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
-    if (e.key === 'Enter') {
+    // Call the external onKeyDown handler first
+    onKeyDown?.(e);
+
+    // If the external handler prevented default, don't run internal logic
+    if (e.defaultPrevented) {
+      return;
+    }
+
+    if (e.key === "Enter") {
       if (isComposing || e.nativeEvent.isComposing) {
         return;
       }
@@ -811,13 +830,23 @@ export const PromptInputTextarea = ({
         return;
       }
       e.preventDefault();
-      e.currentTarget.form?.requestSubmit();
+
+      // Check if the submit button is disabled before submitting
+      const form = e.currentTarget.form;
+      const submitButton = form?.querySelector(
+        'button[type="submit"]'
+      ) as HTMLButtonElement | null;
+      if (submitButton?.disabled) {
+        return;
+      }
+
+      form?.requestSubmit();
     }
 
     // Remove last attachment when Backspace is pressed and textarea is empty
     if (
-      e.key === 'Backspace' &&
-      e.currentTarget.value === '' &&
+      e.key === "Backspace" &&
+      e.currentTarget.value === "" &&
       attachments.files.length > 0
     ) {
       e.preventDefault();
@@ -838,7 +867,7 @@ export const PromptInputTextarea = ({
     const files: File[] = [];
 
     for (const item of items) {
-      if (item.kind === 'file') {
+      if (item.kind === "file") {
         const file = item.getAsFile();
         if (file) {
           files.push(file);
@@ -866,7 +895,7 @@ export const PromptInputTextarea = ({
 
   return (
     <InputGroupTextarea
-      className={cn('field-sizing-content max-h-48 min-h-16', className)}
+      className={cn("field-sizing-content max-h-48 min-h-16", className)}
       name="message"
       onCompositionEnd={() => setIsComposing(false)}
       onCompositionStart={() => setIsComposing(true)}
@@ -881,7 +910,7 @@ export const PromptInputTextarea = ({
 
 export type PromptInputHeaderProps = Omit<
   ComponentProps<typeof InputGroupAddon>,
-  'align'
+  "align"
 >;
 
 export const PromptInputHeader = ({
@@ -890,14 +919,14 @@ export const PromptInputHeader = ({
 }: PromptInputHeaderProps) => (
   <InputGroupAddon
     align="block-end"
-    className={cn('order-first gap-1', className)}
+    className={cn("order-first flex-wrap gap-1", className)}
     {...props}
   />
 );
 
 export type PromptInputFooterProps = Omit<
   ComponentProps<typeof InputGroupAddon>,
-  'align'
+  "align"
 >;
 
 export const PromptInputFooter = ({
@@ -906,7 +935,7 @@ export const PromptInputFooter = ({
 }: PromptInputFooterProps) => (
   <InputGroupAddon
     align="block-end"
-    className={cn('justify-between gap-1', className)}
+    className={cn("justify-between gap-1", className)}
     {...props}
   />
 );
@@ -917,19 +946,19 @@ export const PromptInputTools = ({
   className,
   ...props
 }: PromptInputToolsProps) => (
-  <div className={cn('flex items-center gap-1', className)} {...props} />
+  <div className={cn("flex items-center gap-1", className)} {...props} />
 );
 
 export type PromptInputButtonProps = ComponentProps<typeof InputGroupButton>;
 
 export const PromptInputButton = ({
-  variant = 'ghost',
+  variant = "ghost",
   className,
   size,
   ...props
 }: PromptInputButtonProps) => {
   const newSize =
-    size ?? (Children.count(props.children) > 1 ? 'sm' : 'icon-sm');
+    size ?? (Children.count(props.children) > 1 ? "sm" : "icon-sm");
 
   return (
     <InputGroupButton
@@ -986,32 +1015,47 @@ export const PromptInputActionMenuItem = ({
 
 export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
   status?: ChatStatus;
+  onStop?: () => void;
 };
 
 export const PromptInputSubmit = ({
   className,
-  variant = 'default',
-  size = 'icon-sm',
+  variant = "default",
+  size = "icon-sm",
   status,
+  onStop,
+  onClick,
   children,
   ...props
 }: PromptInputSubmitProps) => {
-  let Icon = <ForwardIcon className="size-4" />;
+  const isGenerating = status === "submitted" || status === "streaming";
 
-  if (status === 'submitted') {
-    Icon = <Loader2Icon className="size-4 animate-spin" />;
-  } else if (status === 'streaming') {
+  let Icon = <CornerDownLeftIcon className="size-4" />;
+
+  if (status === "submitted") {
+    Icon = <Spinner />;
+  } else if (status === "streaming") {
     Icon = <SquareIcon className="size-4" />;
-  } else if (status === 'error') {
+  } else if (status === "error") {
     Icon = <XIcon className="size-4" />;
   }
 
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (isGenerating && onStop) {
+      e.preventDefault();
+      onStop();
+      return;
+    }
+    onClick?.(e);
+  };
+
   return (
     <InputGroupButton
-      aria-label="Submit"
+      aria-label={isGenerating ? "Stop" : "Submit"}
       className={cn(className)}
+      onClick={handleClick}
       size={size}
-      type="submit"
+      type={isGenerating && onStop ? "button" : "submit"}
       variant={variant}
       {...props}
     >
@@ -1020,218 +1064,56 @@ export const PromptInputSubmit = ({
   );
 };
 
-interface SpeechRecognition extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start(): void;
-  stop(): void;
-  onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
-  onend: ((this: SpeechRecognition, ev: Event) => any) | null;
-  onresult:
-    | ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any)
-    | null;
-  onerror:
-    | ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any)
-    | null;
-}
+export type PromptInputSelectProps = ComponentProps<typeof Select>;
 
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-}
-
-type SpeechRecognitionResultList = {
-  readonly length: number;
-  item(index: number): SpeechRecognitionResult;
-  [index: number]: SpeechRecognitionResult;
-};
-
-type SpeechRecognitionResult = {
-  readonly length: number;
-  item(index: number): SpeechRecognitionAlternative;
-  [index: number]: SpeechRecognitionAlternative;
-  isFinal: boolean;
-};
-
-type SpeechRecognitionAlternative = {
-  transcript: string;
-  confidence: number;
-};
-
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string;
-}
-
-declare global {
-  interface Window {
-    SpeechRecognition: {
-      new (): SpeechRecognition;
-    };
-    webkitSpeechRecognition: {
-      new (): SpeechRecognition;
-    };
-  }
-}
-
-export type PromptInputSpeechButtonProps = ComponentProps<
-  typeof PromptInputButton
-> & {
-  textareaRef?: RefObject<HTMLTextAreaElement | null>;
-  onTranscriptionChange?: (text: string) => void;
-};
-
-export const PromptInputSpeechButton = ({
-  className,
-  textareaRef,
-  onTranscriptionChange,
-  ...props
-}: PromptInputSpeechButtonProps) => {
-  const [isListening, setIsListening] = useState(false);
-  const [recognition, setRecognition] = useState<SpeechRecognition | null>(
-    null
-  );
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
-
-  useEffect(() => {
-    if (
-      typeof window !== 'undefined' &&
-      ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
-    ) {
-      const SpeechRecognition =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
-      const speechRecognition = new SpeechRecognition();
-
-      speechRecognition.continuous = true;
-      speechRecognition.interimResults = true;
-      speechRecognition.lang = 'en-US';
-
-      speechRecognition.onstart = () => {
-        setIsListening(true);
-      };
-
-      speechRecognition.onend = () => {
-        setIsListening(false);
-      };
-
-      speechRecognition.onresult = (event) => {
-        let finalTranscript = '';
-
-        const results = Array.from(event.results);
-
-        for (const result of results) {
-          if (result.isFinal) {
-            finalTranscript += result[0].transcript;
-          }
-        }
-
-        if (finalTranscript && textareaRef?.current) {
-          const textarea = textareaRef.current;
-          const currentValue = textarea.value;
-          const newValue =
-            currentValue + (currentValue ? ' ' : '') + finalTranscript;
-
-          textarea.value = newValue;
-          textarea.dispatchEvent(new Event('input', { bubbles: true }));
-          onTranscriptionChange?.(newValue);
-        }
-      };
-
-      speechRecognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-      };
-
-      recognitionRef.current = speechRecognition;
-      setRecognition(speechRecognition);
-    }
-
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-    };
-  }, [textareaRef, onTranscriptionChange]);
-
-  const toggleListening = useCallback(() => {
-    if (!recognition) {
-      return;
-    }
-
-    if (isListening) {
-      recognition.stop();
-    } else {
-      recognition.start();
-    }
-  }, [recognition, isListening]);
-
-  return (
-    <PromptInputButton
-      className={cn(
-        'relative transition-all duration-200',
-        isListening && 'animate-pulse bg-accent text-accent-foreground',
-        className
-      )}
-      disabled={!recognition}
-      onClick={toggleListening}
-      {...props}
-    >
-      <MicIcon className="size-4" />
-    </PromptInputButton>
-  );
-};
-
-export type PromptInputModelSelectProps = ComponentProps<typeof Select>;
-
-export const PromptInputModelSelect = (props: PromptInputModelSelectProps) => (
+export const PromptInputSelect = (props: PromptInputSelectProps) => (
   <Select {...props} />
 );
 
-export type PromptInputModelSelectTriggerProps = ComponentProps<
+export type PromptInputSelectTriggerProps = ComponentProps<
   typeof SelectTrigger
 >;
 
-export const PromptInputModelSelectTrigger = ({
+export const PromptInputSelectTrigger = ({
   className,
   ...props
-}: PromptInputModelSelectTriggerProps) => (
+}: PromptInputSelectTriggerProps) => (
   <SelectTrigger
     className={cn(
-      'border-none bg-transparent font-medium text-muted-foreground shadow-none transition-colors',
-      'hover:bg-accent hover:text-foreground [&[aria-expanded="true"]]:bg-accent [&[aria-expanded="true"]]:text-foreground',
+      "border-none bg-transparent font-medium text-muted-foreground shadow-none transition-colors",
+      "hover:bg-accent hover:text-foreground aria-expanded:bg-accent aria-expanded:text-foreground",
       className
     )}
     {...props}
   />
 );
 
-export type PromptInputModelSelectContentProps = ComponentProps<
+export type PromptInputSelectContentProps = ComponentProps<
   typeof SelectContent
 >;
 
-export const PromptInputModelSelectContent = ({
+export const PromptInputSelectContent = ({
   className,
   ...props
-}: PromptInputModelSelectContentProps) => (
+}: PromptInputSelectContentProps) => (
   <SelectContent className={cn(className)} {...props} />
 );
 
-export type PromptInputModelSelectItemProps = ComponentProps<typeof SelectItem>;
+export type PromptInputSelectItemProps = ComponentProps<typeof SelectItem>;
 
-export const PromptInputModelSelectItem = ({
+export const PromptInputSelectItem = ({
   className,
   ...props
-}: PromptInputModelSelectItemProps) => (
+}: PromptInputSelectItemProps) => (
   <SelectItem className={cn(className)} {...props} />
 );
 
-export type PromptInputModelSelectValueProps = ComponentProps<
-  typeof SelectValue
->;
+export type PromptInputSelectValueProps = ComponentProps<typeof SelectValue>;
 
-export const PromptInputModelSelectValue = ({
+export const PromptInputSelectValue = ({
   className,
   ...props
-}: PromptInputModelSelectValueProps) => (
+}: PromptInputSelectValueProps) => (
   <SelectValue className={cn(className)} {...props} />
 );
 
@@ -1258,7 +1140,7 @@ export type PromptInputHoverCardContentProps = ComponentProps<
 >;
 
 export const PromptInputHoverCardContent = ({
-  align = 'start',
+  align = "start",
   ...props
 }: PromptInputHoverCardContentProps) => (
   <HoverCardContent align={align} {...props} />
@@ -1286,7 +1168,7 @@ export const PromptInputTabLabel = ({
 }: PromptInputTabLabelProps) => (
   <h3
     className={cn(
-      'mb-2 px-3 font-medium text-muted-foreground text-xs',
+      "mb-2 px-3 font-medium text-muted-foreground text-xs",
       className
     )}
     {...props}
@@ -1299,7 +1181,7 @@ export const PromptInputTabBody = ({
   className,
   ...props
 }: PromptInputTabBodyProps) => (
-  <div className={cn('space-y-1', className)} {...props} />
+  <div className={cn("space-y-1", className)} {...props} />
 );
 
 export type PromptInputTabItemProps = HTMLAttributes<HTMLDivElement>;
@@ -1310,7 +1192,7 @@ export const PromptInputTabItem = ({
 }: PromptInputTabItemProps) => (
   <div
     className={cn(
-      'flex items-center gap-2 px-3 py-2 text-xs hover:bg-accent',
+      "flex items-center gap-2 px-3 py-2 text-xs hover:bg-accent",
       className
     )}
     {...props}
