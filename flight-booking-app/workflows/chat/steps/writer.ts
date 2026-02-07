@@ -27,6 +27,31 @@ export async function writeUserMessageMarker(
   }
 }
 
+/**
+ * BUG REPRO: Write a second data part before start to trigger duplication.
+ * With 2+ data parts before start, the AI SDK's structuredClone in
+ * replaceMessage breaks reference equality, causing pushMessage to
+ * add a duplicate when start mutates the message ID.
+ */
+export async function writeFakeDataPart(
+  writable: WritableStream<UIMessageChunk>
+) {
+  'use step';
+  const writer = writable.getWriter();
+  try {
+    await writer.write({
+      type: 'data-fakePart',
+      data: {
+        type: 'extra-data',
+        content: 'This second write triggers duplication',
+        timestamp: Date.now(),
+      },
+    } as UIMessageChunk);
+  } finally {
+    writer.releaseLock();
+  }
+}
+
 export async function writeStreamClose(
   writable: WritableStream<UIMessageChunk>
 ) {

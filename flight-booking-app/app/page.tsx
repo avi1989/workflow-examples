@@ -130,6 +130,18 @@ export default function ChatPage() {
                         );
                       }
 
+                      // Render fake data part (bug repro)
+                      if (part.type === "data-fakePart" && "data" in part) {
+                        return (
+                          <div
+                            key={`${message.id}-fake-${partIndex}`}
+                            className="bg-red-100 border border-red-300 rounded px-3 py-1 text-red-800 text-sm"
+                          >
+                            FAKE DATA PART
+                          </div>
+                        );
+                      }
+
                       // Render workflow data messages (non-user-message data)
                       if (part.type === "data-workflow" && "data" in part) {
                         const data = part.data as any;
