@@ -8,7 +8,7 @@ import { DurableAgent } from '@workflow/ai/agent';
 import { FLIGHT_ASSISTANT_PROMPT, flightBookingTools } from './steps/tools';
 import { getWritable, getWorkflowMetadata } from 'workflow';
 import { chatMessageHook } from './hooks/chat-message';
-import { writeUserMessageMarker, writeStreamClose } from './steps/writer';
+import { writeUserMessageMarker, writeStreamClose, writeFakeDataPart } from './steps/writer';
 
 /**
  * Multi-turn chat workflow.
@@ -39,6 +39,9 @@ export async function chat(initialMessages: UIMessage[]) {
         .map((p) => (p as { type: 'text'; text: string }).text)
         .join('');
       if (textContent) {
+        // BUG REPRO: write a data part before the marker, just like our app
+        // writes data-email + data-quotation before the marker
+        await writeFakeDataPart(writable);
         await writeUserMessageMarker(writable, textContent, msg.id);
       }
     }
