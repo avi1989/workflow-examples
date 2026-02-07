@@ -168,6 +168,15 @@ export default function ChatPage() {
                         );
                       }
 
+                      // Render fake data part (bug repro)
+                      if (part.type === "data-fakePart" && "data" in part) {
+                        return (
+                          <div key={`${message.id}-fake-${partIndex}`} className="bg-red-100 border border-red-300 rounded px-3 py-1 text-red-800 text-sm">
+                            FAKE DATA PART
+                          </div>
+                        );
+                      }
+
                       // Render tool parts
                       if (
                         part.type === "tool-searchFlights" ||

@@ -13,6 +13,7 @@ import {
   writeUserMessageMarker,
   writeStreamClose,
   writeTurnEnd,
+  writeFakeDataPart,
 } from './steps/writer';
 
 /**
@@ -50,6 +51,8 @@ export async function chat(initialMessages: UIMessage[], requestReceivedAt: numb
         .map((p) => (p as { type: 'text'; text: string }).text)
         .join('');
       if (textContent) {
+        // BUG REPRO: separate step write before marker
+        await writeFakeDataPart(writable);
         await writeUserMessageMarker(writable, textContent, msg.id, {
           turnNumber: 1, // First turn is turn 1
           turnStartedAt: workflowStartTime,

@@ -24,6 +24,28 @@ export async function writeRequestReceived(
 }
 
 /**
+ * BUG REPRO: Separate step that writes a data part before the marker.
+ */
+export async function writeFakeDataPart(
+  writable: WritableStream<UIMessageChunk>
+) {
+  'use step';
+  const writer = writable.getWriter();
+  try {
+    await writer.write({
+      type: 'data-fakePart',
+      data: {
+        type: 'extra-data',
+        content: 'This separate step write triggers duplication',
+        timestamp: Date.now(),
+      },
+    } as UIMessageChunk);
+  } finally {
+    writer.releaseLock();
+  }
+}
+
+/**
  * Observability context for turn/workflow tracking
  */
 export interface TurnObservability {
